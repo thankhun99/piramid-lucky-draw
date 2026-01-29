@@ -173,6 +173,22 @@ st.markdown("""
         background: linear-gradient(45deg, #FF416C, #FF4B2B) !important;
     }
 
+    /* ปุ่มควบคุมรางวัล (รีเฟรช, ถัดไป, ย้อนกลับ) - ปรับให้ใหญ่และสวยงาม */
+    div[data-testid="column"] div.stButton > button {
+        height: 80px !important;
+        font-size: 28px !important;
+        font-weight: 600 !important;
+        border-radius: 15px !important;
+        border: 3px solid rgba(255, 255, 255, 0.3) !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
+        transition: all 0.3s ease !important;
+    }
+
+    div[data-testid="column"] div.stButton > button:hover {
+        transform: translateY(-2px) scale(1.02) !important;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5) !important;
+    }
+
     /* กล่องประกาศผลผู้โชคดีขนาดใหญ่ */
     .winner-container {
         text-align: center;
@@ -277,26 +293,86 @@ try:
         not_blank_mask = winner_col.astype(str).str.strip() != ""
         has_winner_mask = not_na_mask & not_blank_mask
 
+        # คำนวณลำดับรางวัลถัดไป (auto-detect)
         if has_winner_mask.any():
             # index ของแถวล่าสุดที่มี WinnerInfo จริง ๆ
             last_idx = df_prizes_clean[has_winner_mask].index[-1]
             last_no_raw = str(df_prizes_clean.loc[last_idx, 'No']).strip()
             try:
                 last_no = int(last_no_raw)
-                current_no = last_no + 1
+                auto_next_no = last_no + 1
             except ValueError:
                 # ถ้าเลขในคอลัมน์ No แปลงเป็นตัวเลขไม่ได้ ให้ fallback เป็นแบบนับจำนวนแถวที่มีผู้รับรางวัล
-                current_no = df_prizes_clean[has_winner_mask].shape[0] + 1
+                auto_next_no = df_prizes_clean[has_winner_mask].shape[0] + 1
         else:
             # ถ้ายังไม่มีผู้ได้รับรางวัลเลย ให้เริ่มที่ลำดับที่ 1
-            current_no = 1
+            auto_next_no = 1
 
+        # ใช้ session_state เพื่อเก็บลำดับรางวัลที่เลือก (ถ้ายังไม่เคยเลือก ให้ใช้ auto_next_no)
+        if 'selected_prize_no' not in st.session_state:
+            st.session_state.selected_prize_no = auto_next_no
+        
+        # ปุ่มรีเฟรชข้อมูลและปุ่มเลือกรางวัล
+        col_refresh, col_prev, col_next, col_auto = st.columns([1, 1, 1, 1])
+        
+        with col_refresh:
+            if st.button("🔄 รีเฟรชข้อมูล", use_container_width=True, help="ดึงข้อมูลล่าสุดจาก Google Sheet"):
+                st.session_state.selected_prize_no = auto_next_no
+                st.rerun()
+        
+        with col_prev:
+            if st.button("◀️ รางวัลก่อนหน้า", use_container_width=True, help="ย้อนกลับไปรางวัลก่อนหน้า"):
+                if st.session_state.selected_prize_no > 1:
+                    st.session_state.selected_prize_no -= 1
+                    st.rerun()
+        
+        with col_next:
+            if st.button("▶️ รางวัลถัดไป", use_container_width=True, help="ไปรางวัลถัดไป"):
+                # หาลำดับสูงสุดที่มีในชีท
+                max_no = 0
+                for no_str in df_prizes_clean['No'].dropna():
+                    try:
+                        no_int = int(str(no_str).strip())
+                        if no_int > max_no:
+                            max_no = no_int
+                    except:
+                        pass
+                
+                if st.session_state.selected_prize_no < max_no:
+                    st.session_state.selected_prize_no += 1
+                    st.rerun()
+        
+        with col_auto:
+            if st.button("🎯 ไปรางวัลถัดไป (Auto)", use_container_width=True, help="ไปรางวัลถัดไปที่ยังไม่มีผู้ได้รับ"):
+                st.session_state.selected_prize_no = auto_next_no
+                st.rerun()
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # ใช้ลำดับรางวัลที่เลือก
+        current_no = st.session_state.selected_prize_no
+        
         # ดึงรายละเอียดรางวัล
         prize_row = df_prizes_clean[df_prizes_clean['No'] == str(current_no)]
         current_prize = prize_row['PrizeDetails'].values[0] if not prize_row.empty else "รางวัลพิเศษ"
+        
+        # เช็คว่ารางวัลนี้มีผู้ได้รับแล้วหรือยัง
+        winner_info = ""
+        if not prize_row.empty:
+            winner_info_raw = prize_row['WinnerInfo'].values[0]
+            if pd.notna(winner_info_raw) and str(winner_info_raw).strip() != "":
+                winner_info = str(winner_info_raw).strip()
 
+        # แสดงสถานะรางวัล
+        status_color = "#ff6b6b" if winner_info else "#51cf66"
+        status_text = "✅ มีผู้ได้รับแล้ว" if winner_info else "⏳ ยังไม่มีผู้ได้รับ"
+        
         st.markdown(f"<h1 style='text-align: center; font-size: 60px;'>🎁 ลำดับรางวัลที่ {current_no}</h1>", unsafe_allow_html=True)
-        st.markdown(f"<h2 style='text-align: center; color: #d4af37; font-size: 80px; margin-bottom: 40px;'>{current_prize}</h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='text-align: center; color: #d4af37; font-size: 80px; margin-bottom: 20px;'>{current_prize}</h2>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: center; font-size: 32px; color: {status_color}; margin-bottom: 40px; font-weight: bold;'>{status_text}</div>", unsafe_allow_html=True)
+        
+        if winner_info:
+            st.info(f"👤 ผู้ได้รับรางวัล: {winner_info}")
 
         if st.button("🧧 กดสุ่มผู้โชคดี 🧧"):
             # คัดกรองผู้มีสิทธิ์ (Checked-in และ ยังไม่มีชื่อใน Column F)
@@ -329,11 +405,16 @@ try:
                     time.sleep(0.06)
 
                 # บันทึกข้อมูล
+                save_success = False
                 try:
                     save_req = f"{SCRIPT_URL}?no={current_no}&empid={target_winner['EmpID']}&name={target_winner['Name']}&prize={current_prize}"
-                    requests.get(save_req, timeout=10)
-                except:
-                    st.error("⚠️ บันทึกข้อมูลล้มเหลว (ตรวจสอบอินเทอร์เน็ต)")
+                    response = requests.get(save_req, timeout=10)
+                    if response.status_code == 200:
+                        save_success = True
+                    else:
+                        st.error(f"⚠️ บันทึกข้อมูลล้มเหลว (Status Code: {response.status_code})")
+                except Exception as e:
+                    st.error(f"⚠️ บันทึกข้อมูลล้มเหลว: {str(e)}")
 
                 st.balloons()
                 # ประกาศผลขนาดใหญ่ยักษ์
@@ -343,8 +424,17 @@ try:
                         <div class="winner-name">{target_winner['Name']}</div>
                         <div class="prize-name">ได้รับรางวัล: {current_prize}</div>
                         <div style='font-size:30px; color:#888; margin-top:20px;'>รหัสพนักงาน: {target_winner['EmpID']}</div>
+                        <div style='font-size:24px; color:#28a745; margin-top:30px; font-weight:bold;'>
+                            {'✅ บันทึกข้อมูลสำเร็จ' if save_success else '⚠️ กรุณาตรวจสอบการบันทึกข้อมูล'}
+                        </div>
                     </div>
                 """, unsafe_allow_html=True)
+                
+                # รอสักครู่แล้วรีเฟรชข้อมูลอัตโนมัติ
+                if save_success:
+                    time.sleep(2)
+                    st.success("🔄 กำลังรีเฟรชข้อมูล...")
+                    st.rerun()
             else:
                 st.warning("⚠️ ไม่มีรายชื่อผู้มีสิทธิ์สุ่มในระบบ")
 
