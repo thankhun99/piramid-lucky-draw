@@ -2,9 +2,88 @@ import streamlit as st
 import pandas as pd
 import time
 import requests
+import hashlib
 
 # --- CONFIGURATION ---
 st.set_page_config(page_title="Piramid Lucky Draw 2026", layout="wide", page_icon="🧧")
+
+# --- ระบบความปลอดภัย Login ---
+# ตั้งค่า Username และ Password (แนะนำให้ใช้ Streamlit Secrets สำหรับความปลอดภัยสูงสุด)
+# สำหรับการใช้งานจริง ให้ตั้งค่าใน Streamlit Cloud: Settings → Secrets
+# หรือสร้างไฟล์ .streamlit/secrets.toml ในเครื่อง (อย่า commit ไฟล์นี้ขึ้น Git!)
+
+# ใช้ secrets ถ้ามี หรือใช้ค่า default
+if 'auth' in st.secrets:
+    AUTH_USERNAME = st.secrets.auth.username
+    AUTH_PASSWORD_HASH = st.secrets.auth.password_hash  # ควรเป็น hash ของ password
+else:
+    # ค่า default (ควรเปลี่ยนก่อน deploy!)
+    AUTH_USERNAME = "admin"
+    AUTH_PASSWORD_HASH = hashlib.sha256("Piramid2026!".encode()).hexdigest()  # Password: Piramid2026!
+
+def check_password(password):
+    """เช็ครหัสผ่านโดยเปรียบเทียบ hash"""
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    return password_hash == AUTH_PASSWORD_HASH
+
+def check_login():
+    """เช็คว่า login แล้วหรือยัง"""
+    if 'logged_in' not in st.session_state:
+        st.session_state.logged_in = False
+    return st.session_state.logged_in
+
+def login_page():
+    """แสดงหน้า Login"""
+    st.markdown("""
+        <div style='text-align: center; padding: 60px 20px;'>
+            <div style='font-size: 70px; font-weight: 900; color: #ffd700; margin-bottom: 30px;'>
+                🔐 เข้าสู่ระบบ
+            </div>
+            <div style='font-size: 32px; color: rgba(255,255,255,0.8); margin-bottom: 50px;'>
+                Piramid Lucky Draw 2026 - Admin Panel
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        with st.form("login_form"):
+            st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
+            username = st.text_input("👤 ชื่อผู้ใช้", placeholder="กรุณากรอกชื่อผู้ใช้", key="login_username")
+            password = st.text_input("🔑 รหัสผ่าน", type="password", placeholder="กรุณากรอกรหัสผ่าน", key="login_password")
+            submit_button = st.form_submit_button("🚪 เข้าสู่ระบบ", use_container_width=True)
+            
+            if submit_button:
+                if username == AUTH_USERNAME and check_password(password):
+                    st.session_state.logged_in = True
+                    st.session_state.login_error = None
+                    st.rerun()
+                else:
+                    st.session_state.login_error = "❌ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"
+                    st.error(st.session_state.login_error)
+            
+            if 'login_error' in st.session_state and st.session_state.login_error:
+                st.error(st.session_state.login_error)
+    
+    # CSS สำหรับหน้า Login
+    st.markdown("""
+        <style>
+        .stForm {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 40px;
+            border-radius: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+        }
+        div[data-testid="stForm"] > div:first-child {
+            padding-top: 20px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+# เช็คสถานะ Login
+if not check_login():
+    login_page()
+    st.stop()  # หยุดการทำงานโค้ดด้านล่างถ้ายังไม่ได้ login
 
 SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyTGi5zQNnZfzj3Fre85uWlhcCh0_-xKBAXYgp4x0VbApxqYc6HX5l7rcI0SGILEN6P/exec"
 BASE_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1jCdqGJFspZobTO47F-qUnGy0q9JjxUOGqsb4OeNDfuYVOgIJYTqD1za6-g5sxUDuWRNqStX3wB8-"
@@ -155,6 +234,26 @@ st.markdown("""
 def get_sheet_data(gid):
     csv_url = f"{BASE_URL}/pub?gid={gid}&output=csv"
     return pd.read_csv(csv_url)
+
+# แสดงข้อมูลผู้ใช้ที่ Login และปุ่ม Logout ใน Sidebar
+st.sidebar.markdown("---")
+st.sidebar.markdown(f"""
+    <div style='padding: 15px; background: rgba(255,255,255,0.1); border-radius: 10px; margin-bottom: 20px;'>
+        <div style='font-size: 18px; color: #ffd700; font-weight: bold; margin-bottom: 5px;'>
+            👤 ผู้ใช้: {AUTH_USERNAME}
+        </div>
+        <div style='font-size: 14px; color: rgba(255,255,255,0.7);'>
+            สถานะ: เข้าสู่ระบบแล้ว
+        </div>
+    </div>
+""", unsafe_allow_html=True)
+
+if st.sidebar.button("🚪 ออกจากระบบ", use_container_width=True, type="primary"):
+    st.session_state.logged_in = False
+    st.session_state.login_error = None
+    st.rerun()
+
+st.sidebar.markdown("---")
 
 # ใช้ Sidebar เมนู
 menu = st.sidebar.radio("เมนูใช้งาน", ["🎯 เริ่มสุ่มรางวัล", "📜 สรุปผู้ได้รับรางวัล", "👥 ตรวจสอบการลงทะเบียน"])
