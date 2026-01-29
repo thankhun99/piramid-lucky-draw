@@ -309,16 +309,9 @@ try:
             # ถ้ายังไม่มีผู้ได้รับรางวัลเลย ให้เริ่มที่ลำดับที่ 1
             auto_next_no = 1
 
-        # โหมดติดตามรางวัลถัดไปอัตโนมัติ (กันค้างอยู่ลำดับเดิมแล้วบันทึกทับ)
-        if 'auto_follow_next' not in st.session_state:
-            st.session_state.auto_follow_next = True
-
-        # ถ้าอยู่โหมดอัตโนมัติ ให้ตาม auto_next_no ทุกครั้ง
-        if st.session_state.auto_follow_next:
-            st.session_state.selected_prize_no = auto_next_no
-
-        # ใช้ session_state เพื่อเก็บลำดับรางวัลที่เลือก (ถ้ายังไม่เคยเลือก ให้ใช้ auto_next_no)
-        if 'selected_prize_no' not in st.session_state:
+        # ใช้ session_state เพื่อเก็บลำดับรางวัลที่เลือก
+        # ถ้าไม่มีค่า (เพิ่งเริ่มต้น หรือเพิ่งสุ่มรางวัลเสร็จ) ให้ไปที่ลำดับถัดไปจากชีท (auto_next_no)
+        if 'selected_prize_no' not in st.session_state or st.session_state.selected_prize_no is None:
             st.session_state.selected_prize_no = auto_next_no
         
         # ปุ่มรีเฟรชข้อมูลและปุ่มเลือกรางวัล
@@ -326,20 +319,17 @@ try:
         
         with col_refresh:
             if st.button("🔄 รีเฟรชข้อมูล", use_container_width=True, help="ดึงข้อมูลล่าสุดจาก Google Sheet"):
-                st.session_state.auto_follow_next = True
-                st.session_state.selected_prize_no = auto_next_no
+                st.session_state.selected_prize_no = None
                 st.rerun()
         
         with col_prev:
             if st.button("◀️ รางวัลก่อนหน้า", use_container_width=True, help="ย้อนกลับไปรางวัลก่อนหน้า"):
-                st.session_state.auto_follow_next = False
                 if st.session_state.selected_prize_no > 1:
                     st.session_state.selected_prize_no -= 1
                     st.rerun()
         
         with col_next:
             if st.button("▶️ รางวัลถัดไป", use_container_width=True, help="ไปรางวัลถัดไป"):
-                st.session_state.auto_follow_next = False
                 # หาลำดับสูงสุดที่มีในชีท
                 max_no = 0
                 for no_str in df_prizes_clean['No'].dropna():
@@ -356,7 +346,6 @@ try:
         
         with col_auto:
             if st.button("🎯 ไปรางวัลถัดไป (Auto)", use_container_width=True, help="ไปรางวัลถัดไปที่ยังไม่มีผู้ได้รับ"):
-                st.session_state.auto_follow_next = True
                 st.session_state.selected_prize_no = auto_next_no
                 st.rerun()
         
@@ -467,13 +456,13 @@ try:
                     </div>
                 """, unsafe_allow_html=True)
                 
-                # รอสักครู่แล้วรีเฟรชข้อมูลอัตโนมัติ + เลื่อนไป “รางวัลถัดไป” กันค้างอยู่ลำดับเดิม
+                # รอสักครู่แล้วรีเฟรชข้อมูลอัตโนมัติ
                 if save_success:
                     try:
-                        st.session_state.auto_follow_next = True
-                        st.session_state.selected_prize_no = int(current_no_int) + 1
+                        # เคลียร์ลำดับที่เลือกไว้ เพื่อให้รันรอบถัดไปคำนวนจากชีทใหม่ (auto_next_no)
+                        st.session_state.selected_prize_no = None
                     except Exception:
-                        st.session_state.auto_follow_next = True
+                        st.session_state.selected_prize_no = None
                     time.sleep(1)
                     st.rerun()
             else:
