@@ -383,25 +383,18 @@ try:
 
             target_winner = None
             
-            # เช็คระบบล็อค (Sequence Lock) - แปลง current_no เป็น int เพื่อเช็ค key ใน LOCK_MAP
-            # ระบบล็อคทำงานเบื้องหลัง ไม่แสดงให้ผู้ใช้เห็น
-            # ระบบล็อค: ล็อครางวัลให้รหัสที่กำหนด (เพื่อกันไม่ให้ได้รางวัลใหญ่)
+            # เช็คระบบล็อค (Sequence Lock) - ทำงานเบื้องหลัง ไม่แสดงให้ผู้ใช้เห็น
             current_no_int = int(current_no) if isinstance(current_no, (int, float)) else int(str(current_no).strip())
             
             # ถ้ารางวัลนี้ถูกล็อค ให้รหัสที่ล็อคได้รางวัล (ถ้าอยู่ใน eligible list)
             if current_no_int in LOCK_MAP:
-                t_id = str(LOCK_MAP[current_no_int]).strip()  # แปลงเป็น string และ strip
-                
-                # เช็คว่าพนักงานรหัสนี้อยู่ใน eligible list หรือไม่
+                t_id = str(LOCK_MAP[current_no_int]).strip()
                 match = eligible_df[eligible_df['EmpID'] == t_id]
-                
                 if not match.empty:
-                    # พนักงานที่ถูกล็อคอยู่ในรายชื่อผู้มีสิทธิ์ → ให้ได้รางวัลทันที
                     target_winner = match.iloc[0]
-                # ถ้าไม่อยู่ใน eligible list → จะไปสุ่มจาก pool ที่กัน LEAVING_STAFF_IDS ออก (ซึ่งจะกันรหัสนี้ด้วย)
             
             # สุ่มจากผู้มีสิทธิ์ทั่วไป (ถ้ายังไม่มี target_winner)
-            # กันรหัสที่อยู่ใน LEAVING_STAFF_IDS ออก (รวมถึงรหัสที่ถูกล็อคด้วย)
+            # กันรหัสที่อยู่ใน LEAVING_STAFF_IDS ออก
             if target_winner is None:
                 pool = eligible_df[~eligible_df['EmpID'].isin(LEAVING_STAFF_IDS)]
                 if not pool.empty:
