@@ -159,7 +159,8 @@ st.markdown("""
         height: 170px !important;
         font-size: 64px !important;
         font-weight: bold !important;
-        color: #ffd700 !important;  /* ข้อความปุ่มสีเหลือง */
+        /* สีตัวอักษรของปุ่มทั่วไป (เช่น Login, ปุ่มสุ่มหลัก) ใช้สีมาตรฐานของธีม/สีขาว */
+        color: #ffffff !important;
         background: linear-gradient(45deg, #FF4B2B, #FF416C) !important;
         border-radius: 30px !important;
         border: 5px solid #ffffff !important;
@@ -178,7 +179,7 @@ st.markdown("""
         height: 80px !important;
         font-size: 28px !important;
         font-weight: 600 !important;
-        color: #ffd700 !important;  /* ข้อความปุ่มสีเหลือง */
+        color: #ffd700 !important;  /* ข้อความปุ่มควบคุมด้านบนเป็นสีเหลือง */
         border-radius: 15px !important;
         border: 3px solid rgba(255, 255, 255, 0.3) !important;
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
