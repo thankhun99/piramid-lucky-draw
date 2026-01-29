@@ -290,9 +290,9 @@ try:
         # --- ระบบตรวจสอบลำดับล่าสุดจากชีท Result คอลัมน์ G (ผู้ได้รับรางวัล) ---
         # ใช้ "แถวล่าสุดที่ไม่ว่างและไม่เป็น NaN" แล้วไปลุ้นรางวัลลำดับถัดไป
         winner_col = df_prizes_clean['WinnerInfo']
-        not_na_mask = winner_col.notna()
-        not_blank_mask = winner_col.astype(str).str.strip() != ""
-        has_winner_mask = not_na_mask & not_blank_mask
+        # บางครั้ง Google Sheet/CSV จะทำให้ช่องว่างกลายเป็น "None"/"nan"
+        winner_str = winner_col.astype(str).str.strip()
+        has_winner_mask = ~winner_str.str.lower().isin(["", "none", "nan"])
 
         # คำนวณลำดับรางวัลถัดไป (auto-detect)
         if has_winner_mask.any():
@@ -373,8 +373,9 @@ try:
         winner_info = ""
         if not prize_row.empty:
             winner_info_raw = prize_row['WinnerInfo'].values[0]
-            if pd.notna(winner_info_raw) and str(winner_info_raw).strip() != "":
-                winner_info = str(winner_info_raw).strip()
+            winner_info_str = str(winner_info_raw).strip()
+            if winner_info_str.lower() not in ["", "none", "nan"]:
+                winner_info = winner_info_str
 
         # แสดงสถานะรางวัล
         status_color = "#ff6b6b" if winner_info else "#51cf66"
@@ -391,11 +392,24 @@ try:
         can_draw = winner_info == ""
 
         if st.button("🧧 กดสุ่มผู้โชคดี 🧧", disabled=not can_draw):
+            # กันคนที่เคยได้รางวัลแล้ว (อ้างอิงจากชีท Result โดยตรง) เพื่อกันอัปเดต Staff ช้าแล้วสุ่มซ้ำ
+            won_empids = set()
+            try:
+                won_series = df_prizes_clean.loc[has_winner_mask, 'WinnerInfo'].astype(str).str.strip()
+                # WinnerInfo โดยปกติจะขึ้นต้นด้วย EmpID เช่น "10691 ชื่อ..."
+                won_empids = set(
+                    won_series.str.extract(r'^\\s*(\\d+)')[0].dropna().astype(str).tolist()
+                )
+            except Exception:
+                won_empids = set()
+
             # คัดกรองผู้มีสิทธิ์ (Checked-in และ ยังไม่มีชื่อใน Column F)
             eligible_df = df_staff[
                 (df_staff['Status'] == 'Checked-in') & 
                 (df_staff['Result_List'].isna() | (df_staff['Result_List'] == ""))
             ]
+            if won_empids:
+                eligible_df = eligible_df[~eligible_df['EmpID'].isin(won_empids)]
 
             # ระบบล็อครางวัล (ทำงานเงียบ ๆ) ตามเงื่อนไข LOCK_MAP:
             # ถ้าลำดับรางวัลอยู่ใน LOCK_MAP → ผู้ชนะ "ต้องเป็น" EmpID ตามที่ระบุ
