@@ -470,7 +470,15 @@ try:
 
         st.markdown("<br><br>", unsafe_allow_html=True)
         st.subheader("📋 ตรวจสอบรายการรางวัล")
-        st.dataframe(df_prizes_clean[['No', 'PrizeDetails', 'WinnerInfo']], use_container_width=True)
+
+        # ตารางแสดงผลจากชีท Result โดยตรง (Column A, C, G)
+        try:
+            df_result_view = df_prizes.iloc[1:, [0, 2, 6]].copy()  # A, C, G (ข้ามแถวหัวข้อบนสุด)
+            df_result_view.columns = ['No', 'PrizeDetails', 'WinnerInfo']
+            st.dataframe(df_result_view, use_container_width=True)
+        except Exception:
+            # ถ้ามีปัญหาเรื่องโครงสร้างคอลัมน์ ให้ fallback ไปใช้ df_prizes_clean เดิม
+            st.dataframe(df_prizes_clean[['No', 'PrizeDetails', 'WinnerInfo']], use_container_width=True)
 
     elif menu == "📜 สรุปผู้ได้รับรางวัล":
         st.subheader("📜 รายชื่อผู้ได้รับรางวัลทั้งหมด")
