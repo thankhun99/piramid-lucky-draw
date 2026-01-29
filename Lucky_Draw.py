@@ -309,13 +309,23 @@ try:
             # ถ้ายังไม่มีผู้ได้รับรางวัลเลย ให้เริ่มที่ลำดับที่ 1
             auto_next_no = 1
 
+        # หาลำดับรางวัลสูงสุดจากคอลัมน์ No (ใช้ร่วมกับปุ่ม "รางวัลถัดไป" และ Manual)
+        max_no_overall = 0
+        for no_str in df_prizes_clean['No'].dropna():
+            try:
+                no_int = int(str(no_str).strip())
+                if no_int > max_no_overall:
+                    max_no_overall = no_int
+            except Exception:
+                pass
+
         # ใช้ session_state เพื่อเก็บลำดับรางวัลที่เลือก
         # ถ้าไม่มีค่า (เพิ่งเริ่มต้น หรือเพิ่งสุ่มรางวัลเสร็จ) ให้ไปที่ลำดับถัดไปจากชีท (auto_next_no)
         if 'selected_prize_no' not in st.session_state or st.session_state.selected_prize_no is None:
             st.session_state.selected_prize_no = auto_next_no
         
-        # ปุ่มรีเฟรชข้อมูลและปุ่มเลือกรางวัล
-        col_refresh, col_prev, col_next, col_auto = st.columns([1, 1, 1, 1])
+        # ปุ่มรีเฟรชข้อมูลและปุ่มเลือกรางวัล (มีทั้ง Auto + Manual)
+        col_refresh, col_prev, col_next, col_auto, col_manual = st.columns([1, 1, 1, 1, 1.3])
         
         with col_refresh:
             if st.button("🔄 รีเฟรชข้อมูล", use_container_width=True, help="ดึงข้อมูลล่าสุดจาก Google Sheet"):
@@ -330,23 +340,30 @@ try:
         
         with col_next:
             if st.button("▶️ รางวัลถัดไป", use_container_width=True, help="ไปรางวัลถัดไป"):
-                # หาลำดับสูงสุดที่มีในชีท
-                max_no = 0
-                for no_str in df_prizes_clean['No'].dropna():
-                    try:
-                        no_int = int(str(no_str).strip())
-                        if no_int > max_no:
-                            max_no = no_int
-                    except:
-                        pass
-                
-                if st.session_state.selected_prize_no < max_no:
+                if max_no_overall > 0 and st.session_state.selected_prize_no < max_no_overall:
                     st.session_state.selected_prize_no += 1
                     st.rerun()
         
         with col_auto:
             if st.button("🎯 ไปรางวัลถัดไป (Auto)", use_container_width=True, help="ไปรางวัลถัดไปที่ยังไม่มีผู้ได้รับ"):
                 st.session_state.selected_prize_no = auto_next_no
+                st.rerun()
+
+        # Manual: กรอกลำดับรางวัลเอง
+        with col_manual:
+            manual_min = 1
+            manual_max = max_no_overall if max_no_overall > 0 else 1
+            manual_default = int(st.session_state.selected_prize_no) if st.session_state.selected_prize_no else manual_min
+            manual_no = st.number_input(
+                "ไปลำดับ (Manual)",
+                min_value=manual_min,
+                max_value=manual_max,
+                value=manual_default,
+                step=1,
+                key="manual_prize_no"
+            )
+            if st.button("ไป", use_container_width=True, help="ไปยังลำดับรางวัลที่ระบุ (Manual)"):
+                st.session_state.selected_prize_no = int(manual_no)
                 st.rerun()
         
         st.markdown("<br>", unsafe_allow_html=True)
@@ -456,15 +473,10 @@ try:
                     </div>
                 """, unsafe_allow_html=True)
                 
-                # รอสักครู่แล้วรีเฟรชข้อมูลอัตโนมัติ
+                # หลังประกาศผล: แสดงหน้าแสดงความยินดีค้างไว้
+                # ไม่ auto-rerun ให้ผู้ควบคุมงานเป็นคนกดเลือก "รางวัลถัดไป" หรือใส่ลำดับ (Manual) เองเมื่อพร้อม
                 if save_success:
-                    try:
-                        # เคลียร์ลำดับที่เลือกไว้ เพื่อให้รันรอบถัดไปคำนวนจากชีทใหม่ (auto_next_no)
-                        st.session_state.selected_prize_no = None
-                    except Exception:
-                        st.session_state.selected_prize_no = None
-                    time.sleep(1)
-                    st.rerun()
+                    st.success("✅ บันทึกข้อมูลสำเร็จแล้ว สามารถเลือกรางวัลถัดไปเมื่อพร้อม")
             else:
                 st.warning("⚠️ ไม่มีรายชื่อผู้มีสิทธิ์สุ่มในระบบ")
 
