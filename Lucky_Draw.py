@@ -309,6 +309,14 @@ try:
             # ถ้ายังไม่มีผู้ได้รับรางวัลเลย ให้เริ่มที่ลำดับที่ 1
             auto_next_no = 1
 
+        # โหมดติดตามรางวัลถัดไปอัตโนมัติ (กันค้างอยู่ลำดับเดิมแล้วบันทึกทับ)
+        if 'auto_follow_next' not in st.session_state:
+            st.session_state.auto_follow_next = True
+
+        # ถ้าอยู่โหมดอัตโนมัติ ให้ตาม auto_next_no ทุกครั้ง
+        if st.session_state.auto_follow_next:
+            st.session_state.selected_prize_no = auto_next_no
+
         # ใช้ session_state เพื่อเก็บลำดับรางวัลที่เลือก (ถ้ายังไม่เคยเลือก ให้ใช้ auto_next_no)
         if 'selected_prize_no' not in st.session_state:
             st.session_state.selected_prize_no = auto_next_no
@@ -318,17 +326,20 @@ try:
         
         with col_refresh:
             if st.button("🔄 รีเฟรชข้อมูล", use_container_width=True, help="ดึงข้อมูลล่าสุดจาก Google Sheet"):
+                st.session_state.auto_follow_next = True
                 st.session_state.selected_prize_no = auto_next_no
                 st.rerun()
         
         with col_prev:
             if st.button("◀️ รางวัลก่อนหน้า", use_container_width=True, help="ย้อนกลับไปรางวัลก่อนหน้า"):
+                st.session_state.auto_follow_next = False
                 if st.session_state.selected_prize_no > 1:
                     st.session_state.selected_prize_no -= 1
                     st.rerun()
         
         with col_next:
             if st.button("▶️ รางวัลถัดไป", use_container_width=True, help="ไปรางวัลถัดไป"):
+                st.session_state.auto_follow_next = False
                 # หาลำดับสูงสุดที่มีในชีท
                 max_no = 0
                 for no_str in df_prizes_clean['No'].dropna():
@@ -345,6 +356,7 @@ try:
         
         with col_auto:
             if st.button("🎯 ไปรางวัลถัดไป (Auto)", use_container_width=True, help="ไปรางวัลถัดไปที่ยังไม่มีผู้ได้รับ"):
+                st.session_state.auto_follow_next = True
                 st.session_state.selected_prize_no = auto_next_no
                 st.rerun()
         
@@ -375,7 +387,10 @@ try:
         if winner_info:
             st.info(f"👤 ผู้ได้รับรางวัล: {winner_info}")
 
-        if st.button("🧧 กดสุ่มผู้โชคดี 🧧"):
+        # กันการกดซ้ำแล้วบันทึกทับ: ถ้ารางวัลนี้มีผู้ได้รับแล้ว ให้ปิดปุ่มสุ่ม
+        can_draw = winner_info == ""
+
+        if st.button("🧧 กดสุ่มผู้โชคดี 🧧", disabled=not can_draw):
             # คัดกรองผู้มีสิทธิ์ (Checked-in และ ยังไม่มีชื่อใน Column F)
             eligible_df = df_staff[
                 (df_staff['Status'] == 'Checked-in') & 
@@ -438,10 +453,14 @@ try:
                     </div>
                 """, unsafe_allow_html=True)
                 
-                # รอสักครู่แล้วรีเฟรชข้อมูลอัตโนมัติ
+                # รอสักครู่แล้วรีเฟรชข้อมูลอัตโนมัติ + เลื่อนไป “รางวัลถัดไป” กันค้างอยู่ลำดับเดิม
                 if save_success:
-                    time.sleep(2)
-                    st.success("🔄 กำลังรีเฟรชข้อมูล...")
+                    try:
+                        st.session_state.auto_follow_next = True
+                        st.session_state.selected_prize_no = int(current_no_int) + 1
+                    except Exception:
+                        st.session_state.auto_follow_next = True
+                    time.sleep(1)
                     st.rerun()
             else:
                 st.warning("⚠️ ไม่มีรายชื่อผู้มีสิทธิ์สุ่มในระบบ")
