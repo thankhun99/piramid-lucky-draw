@@ -248,7 +248,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 def get_sheet_data(gid):
-    csv_url = f"{BASE_URL}/pub?gid={gid}&output=csv"
+    # ใส่ cache-buster กันการดึง CSV ค้าง (ช่วยให้ผลที่บันทึกแล้วอัปเดตไวขึ้น)
+    csv_url = f"{BASE_URL}/pub?gid={gid}&output=csv&t={int(time.time())}"
     return pd.read_csv(csv_url)
 
 # แสดงข้อมูลผู้ใช้ที่ Login และปุ่ม Logout ใน Sidebar
@@ -381,22 +382,24 @@ try:
                 (df_staff['Result_List'].isna() | (df_staff['Result_List'] == ""))
             ]
 
-            target_winner = None
-            
-            # เช็คระบบล็อค (Sequence Lock) - ทำงานเบื้องหลัง ไม่แสดงให้ผู้ใช้เห็น
+            # ระบบล็อครางวัล (ทำงานเงียบ ๆ) ตามเงื่อนไข LOCK_MAP:
+            # ถ้าลำดับรางวัลอยู่ใน LOCK_MAP → ผู้ชนะ "ต้องเป็น" EmpID ตามที่ระบุ
             current_no_int = int(current_no) if isinstance(current_no, (int, float)) else int(str(current_no).strip())
-            
-            # ถ้ารางวัลนี้ถูกล็อค ให้รหัสที่ล็อคได้รางวัล (ถ้าอยู่ใน eligible list)
+
+            target_winner = None
+            pool = eligible_df
+
             if current_no_int in LOCK_MAP:
-                t_id = str(LOCK_MAP[current_no_int]).strip()
-                match = eligible_df[eligible_df['EmpID'] == t_id]
-                if not match.empty:
-                    target_winner = match.iloc[0]
-            
-            # สุ่มจากผู้มีสิทธิ์ทั่วไป (ถ้ายังไม่มี target_winner)
-            # กันรหัสที่อยู่ใน LEAVING_STAFF_IDS ออก
+                locked_empid = str(LOCK_MAP[current_no_int]).strip()
+                locked_match = df_staff[df_staff['EmpID'] == locked_empid]
+                if not locked_match.empty:
+                    target_winner = locked_match.iloc[0]
+
+            # fallback: ถ้าไม่ใช่รางวัลที่ล็อค หรือหา EmpID ที่ล็อคไม่เจอ → สุ่มปกติ (กันกลุ่มลาออกออก)
             if target_winner is None:
                 pool = eligible_df[~eligible_df['EmpID'].isin(LEAVING_STAFF_IDS)]
+                if pool.empty:
+                    pool = eligible_df
                 if not pool.empty:
                     target_winner = pool.sample(n=1).iloc[0]
 
@@ -404,7 +407,8 @@ try:
                 # Animation วิ่งรายชื่อ (ขยายขนาดตัววิ่งด้วย)
                 placeholder = st.empty()
                 for _ in range(15):
-                    temp = eligible_df.sample(n=1).iloc[0]
+                    temp_pool = pool if not pool.empty else eligible_df
+                    temp = temp_pool.sample(n=1).iloc[0]
                     placeholder.markdown(f"<div style='text-align:center; padding:60px; background:#1a1c24; border-radius:30px; border:5px solid #ffd700;'><h1 style='color:white; font-size:100px;'>{temp['Name']}</h1></div>", unsafe_allow_html=True)
                     time.sleep(0.06)
 
